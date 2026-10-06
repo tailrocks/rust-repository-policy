@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "groups": {
+    "lib-a": "library",
+    "tool-b": "tool"
+  }
+}

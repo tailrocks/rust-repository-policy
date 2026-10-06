@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "groups": {
+    "high": "tool",
+    "low": "support",
+    "odd": "weird"
+  }
+}
