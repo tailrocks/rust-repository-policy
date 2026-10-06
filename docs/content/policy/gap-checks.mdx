@@ -1,0 +1,164 @@
+---
+title: Gap checks
+description: What check-gaps enforces and which native capability each gap needs.
+---
+
+# Gap checks
+
+`rust-repository-policy check-gaps` owns only the checks native alint
+cannot express (contract S1: one owner per check; see [Rule
+owners](/policy/rule-owners)). Each gap below names the
+native-missing-capability that forces it into the helper.
+
+The helper never compiles the checked workspace: Cargo facts come from
+read-only `cargo metadata` runs (`--no-deps` for inventory/shape facts,
+full resolve for the dependency graph). Everything else is parsed from
+files. File discovery uses `git ls-files` (tracked plus
+untracked-but-visible, hidden dirs included) with a filesystem-walk
+fallback outside git work trees.
+
+## Usage
+
+```sh
+rust-repository-policy check-gaps [--root <dir>]
+  [--max-code-lines <n>] [--max-files <n>]
+```
+
+Defaults: `--max-code-lines 6000`, `--max-files 60`. Output is one line
+per finding — stable rule ID, relative path, 1-based line, and
+correction:
+
+```text
+GAP-TEST-001 crates/a/src/lib.rs:12: direct test function in a production file (correction: move the test to the sibling tests.rs)
+```
+
+Exit `0` when clean, `1` when any gap fires, `2` on usage/runtime
+errors. Aggregate/file-level findings attach at line 1.
+
+## Adopter registry files
+
+Three JSON files under the workspace root drive the graph checks:
+
+- `policy/owned-packages.json`: `{"version": 1, "packages": [...]}` —
+  shape per `schemas/owned-package-inventory.schema.json`.
+- `policy/package-groups.json`: `{"version": 1, "groups": {"pkg":
+  "tool"|"library"|"support"|"ffi"|"lints"}}`.
+- `policy/ci-recipes.json`: `{"version": 1, "recipes": [...]}` — the
+  expected CI job-ID set.
+
+## Gaps
+
+### Open-ended workspace-inheritance completeness
+
+Native-missing-capability: `toml_path_equals` pins only enumerated
+keys to `{workspace: true}`. It cannot iterate the workspace's actual
+`[workspace.package]` keys / `[workspace.dependencies]` names, so a
+newly added workspace key is silently uncovered until a rule is edited.
+
+- `GAP-INHERIT-001`: member `[package]` key defined literally while the
+  workspace defines it. Fix: `key.workspace = true`.
+- `GAP-INHERIT-002`: member dependency entry defined literally while the
+  workspace defines that dependency (rename-aware via `package =`).
+  Applies under `[dependencies]`, `[dev-dependencies]`,
+  `[build-dependencies]`, and `[target.*]` wrappers. Fix:
+  `dep.workspace = true` (extra `features` may stay alongside).
+- `GAP-INHERIT-003`: member lints missing or literal while the workspace
+  defines `[workspace.lints]`. Fix: `[lints]` with `workspace = true`.
+
+### CI recipe-to-job set parity
+
+Native-missing-capability: JSONPath cannot extract the key names of a
+`jobs:` mapping, so no native rule can diff the job-ID set against a
+registry — only enumerated `yaml_path_equals`/`yaml_path_absent`
+pins.
+
+- `GAP-CI-001`: `policy/ci-recipes.json` missing or invalid.
+- `GAP-CI-002`: registered recipe with no matching job across
+  `.github/workflows/*.yml|*.yaml`.
+- `GAP-CI-003`: CI job with no registered recipe.
+
+### Size aggregates
+
+Native-missing-capability: the alint probe found zero aggregate kinds
+— `file_max_lines` caps one file but cannot sum lines or count files
+per crate.
+
+- `GAP-SIZE-001`: crate over the code-line budget (default 6000).
+  Counting is token-aware: blank lines and comments (line, nestable
+  block) are excluded; string/character content counts as code.
+  Findings attach to the crate manifest at line 1.
+- `GAP-SIZE-002`: crate over the `.rs` file-count budget (default 60),
+  counted under the package dir excluding `target/`.
+
+### Rust syntax: test placement
+
+Native-missing-capability: alint has no Rust parser — path-shape rules
+match names, never `#[test]` attributes or `mod` declarations. Parsing
+with `syn` also keeps comment-or-string test text valid. Parser logic
+is adapted from the product-workspace gate: flat discovery replaced by
+`cargo metadata` packages, the exact-whitespace suite check replaced by
+a structural one, hard-coded fixture registries dropped.
+
+Production files are `src/**/*.rs` except `tests.rs` suites;
+`tests/`, benches, and examples may hold tests.
+
+- `GAP-TEST-001`: test implementation in a production file — `#[test]`
+  / `rstest` / `test_case` / `path::test` (covers `tokio::test`-style
+  async fns), including via `cfg_attr`, methods in `impl`/`trait`
+  blocks, inline or otherwise non-canonical suite modules,
+  `macro_rules!` bodies carrying test attributes (token-scanned,
+  literals skipped), and `include!` of test-stemmed files. Also used
+  when a production file cannot be parsed.
+- `GAP-TEST-002`: non-canonical suite path — `#[path]` on a test suite
+  module, child modules inside a `tests.rs` suite, or files under a
+  `src/tests/` split directory.
+
+### Rust syntax: orphans
+
+Native-missing-capability: same missing Rust parser — reachability
+through `mod` declarations (including `#[path]` and `include!`) is
+invisible to name-based rules.
+
+- `GAP-TEST-003`: `src/` file unreachable from any lib/bin/proc-macro
+  target root. Fix: declare the module or delete the file.
+
+### Dependency direction
+
+Native-missing-capability: alint has no Cargo resolve graph, so
+inter-package edges are invisible.
+
+Direction table (dependent → allowed):
+
+| group   | may depend on               |
+|---------|-----------------------------|
+| tool    | tool, library, support, ffi |
+| library | library, support, ffi       |
+| support | support, ffi                |
+| ffi     | ffi                         |
+| lints   | (nothing)                   |
+
+Only `normal` and `build` edges are checked; `dev-dependencies` are
+exempt.
+
+- `GAP-DEPS-001`: direction violation.
+- `GAP-DEPS-002`: workspace package missing from the group table.
+- `GAP-DEPS-003`: unknown group name.
+- `GAP-DEPS-004`: `policy/package-groups.json` missing or invalid.
+
+### Owned-package inventory
+
+Native-missing-capability: alint cannot run Cargo, so it cannot compare
+a declared inventory against real workspace membership.
+
+- `GAP-INV-001`: `policy/owned-packages.json` missing or invalid.
+- `GAP-INV-002`: workspace package (`cargo metadata --no-deps`)
+  missing from the inventory.
+- `GAP-INV-003`: inventory entry that is not a workspace package.
+
+## Fixtures
+
+`fixtures/helper/` holds runnable miniature workspaces: `pass`
+(fully clean, including comment/string test-text decoys), one `fail-*`
+root per gap area (otherwise clean, asserting exact rule multisets in
+`crates/tools/rust-repository-policy/tests/check_gaps.rs`), and
+`boundary` (exact-budget pass, off-by-one fail for both size budgets).

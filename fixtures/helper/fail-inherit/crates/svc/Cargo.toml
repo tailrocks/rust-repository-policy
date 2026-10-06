@@ -1,0 +1,11 @@
+[package]
+name = "svc"
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+base = { path = "../base" }
+
+[lints.rust]
+unsafe_code = "allow"

@@ -1,0 +1,11 @@
+[package]
+name = "low"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+high = { path = "../high" }
+
+[lints]
+workspace = true

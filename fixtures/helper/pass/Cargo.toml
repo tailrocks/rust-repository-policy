@@ -1,0 +1,14 @@
+[workspace]
+members = ["crates/lib-a", "crates/tool-b"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+lib-a = { path = "crates/lib-a" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

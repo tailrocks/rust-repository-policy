@@ -1,0 +1,11 @@
+name: ci
+on: push
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+  stray:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo stray

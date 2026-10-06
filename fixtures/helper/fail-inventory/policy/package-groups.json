@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "groups": {
+    "real-a": "library",
+    "real-b": "library"
+  }
+}
