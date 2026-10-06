@@ -3,3 +3,6 @@
 pub fn app() -> &'static str {
     "ok"
 }
+
+#[cfg(test)]
+mod tests;

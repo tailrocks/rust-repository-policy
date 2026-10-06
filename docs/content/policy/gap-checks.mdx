@@ -110,8 +110,11 @@ Production files are `src/**/*.rs` except `tests.rs` suites;
   literals skipped), and `include!` of test-stemmed files. Also used
   when a production file cannot be parsed.
 - `GAP-TEST-002`: non-canonical suite path — `#[path]` on a test suite
-  module, child modules inside a `tests.rs` suite, or files under a
-  `src/tests/` split directory.
+  module, inline or `#[path]` child modules inside a `tests.rs` suite,
+  or files under a `<parent>/tests/` case directory with no sibling
+  `<parent>/tests.rs`. Canonical case splits — external `mod <case>;`
+  in `tests.rs` resolving to `tests/<case>.rs` — are clean, so large
+  suites can split without tripping the per-file size budget.
 
 ### Rust syntax: orphans
 
@@ -158,7 +161,8 @@ a declared inventory against real workspace membership.
 ## Fixtures
 
 `fixtures/helper/` holds runnable miniature workspaces: `pass`
-(fully clean, including comment/string test-text decoys), one `fail-*`
-root per gap area (otherwise clean, asserting exact rule multisets in
+(fully clean, including comment/string test-text decoys and a canonical
+`tests.rs` + `tests/<case>.rs` split), one `fail-*` root per gap area
+(otherwise clean, asserting exact rule multisets in
 `crates/tools/rust-repository-policy/tests/check_gaps.rs`), and
 `boundary` (exact-budget pass, off-by-one fail for both size budgets).

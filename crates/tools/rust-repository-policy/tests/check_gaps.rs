@@ -127,8 +127,8 @@ fn fail_syntax_reports_all_syntax_rules() {
     assert!(text.contains("case_macro.rs:3: test attribute inside a macro_rules!"));
     assert!(text.contains("case_path.rs:1: test suite module `tests` uses #[path]"));
     assert!(text.contains("orphan.rs:1: orphan Rust file"));
-    assert!(text.contains("tests.rs:1: tests.rs declares child modules"));
-    assert!(text.contains("tests/extra.rs:1: split-out test file"));
+    assert!(text.contains("tests.rs:2: inline child module `inline` in tests.rs"));
+    assert!(text.contains("other/tests/stray.rs:1: split-out test file"));
 }
 
 #[test]

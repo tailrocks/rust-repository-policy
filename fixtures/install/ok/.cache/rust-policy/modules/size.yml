@@ -22,7 +22,9 @@ rules:
   - id: size-lib-main-150
     kind: file_max_lines
     paths:
-      include: ["**/lib.rs", "**/main.rs"]
+      # src/ entry points only: tests/main.rs integration runners,
+      # benches, and examples keep their own shape (S6).
+      include: ["**/src/lib.rs", "**/src/main.rs"]
       exclude: ["**/target/**", "**/.cache/**", "**/node_modules/**"]
     max_lines: 150
     level: error
