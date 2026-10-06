@@ -5,13 +5,16 @@
 # aggregate check (policy-size-check --check) in their own .alint.yml.
 # Line accounting is wc -l (trailing newline matters at the boundary).
 # fixtures/ and testdata/ are adversarial inputs, not owned code.
+# target/, .cache/, node_modules/ are build-output/vendor noise: they MUST
+# stay excluded because the strict profile sets respect_gitignore: false
+# (policy linting must not honor ignores), which widens the walked tree.
 version: 1
 rules:
   - id: size-file-400
     kind: file_max_lines
     paths:
       include: ["**/*.rs"]
-      exclude: ["**/fixtures/**", "**/testdata/**"]
+      exclude: ["**/fixtures/**", "**/testdata/**", "**/target/**", "**/.cache/**", "**/node_modules/**"]
     max_lines: 400
     level: error
     message: "Rust source exceeds 400 lines; split the file (no grandfathering)"
@@ -20,6 +23,7 @@ rules:
     kind: file_max_lines
     paths:
       include: ["**/lib.rs", "**/main.rs"]
+      exclude: ["**/target/**", "**/.cache/**", "**/node_modules/**"]
     max_lines: 150
     level: error
     message: "lib.rs/main.rs MUST stay under 150 lines; move logic into modules"

@@ -6,7 +6,7 @@ version: 1
 rules:
   - id: cargo-workspace-inherit-edition
     kind: toml_path_equals
-    paths: "crates/*/Cargo.toml"
+    paths: "crates/*/*/Cargo.toml"
     path: "$.package.edition"
     equals: {workspace: true}
     level: error
@@ -14,7 +14,7 @@ rules:
 
   - id: cargo-workspace-inherit-license
     kind: toml_path_equals
-    paths: "crates/*/Cargo.toml"
+    paths: "crates/*/*/Cargo.toml"
     path: "$.package.license"
     equals: {workspace: true}
     level: error
@@ -22,7 +22,7 @@ rules:
 
   - id: cargo-workspace-inherit-lints
     kind: toml_path_equals
-    paths: "crates/*/Cargo.toml"
+    paths: "crates/*/*/Cargo.toml"
     path: "$.lints"
     equals: {workspace: true}
     level: error
@@ -30,7 +30,7 @@ rules:
 
   - id: cargo-no-patch
     kind: toml_path_absent
-    paths: ["Cargo.toml", "crates/*/Cargo.toml"]
+    paths: ["Cargo.toml", "crates/*/*/Cargo.toml"]
     path: "$.patch"
     level: error
     message: "[patch] sections are forbidden (vendored source drift)"

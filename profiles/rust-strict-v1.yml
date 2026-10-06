@@ -2,6 +2,13 @@
 # Adopters pin a release tag of this repo and extend this file.
 version: 1
 allow_out_of_root: true
+# Policy linting MUST NOT honor .gitignore: size/test/layout content rules
+# are otherwise one ignore-line away from evasion (probed 2026-10-06: a
+# gitignored 500-line file passed size-file-400). Trade-off: the walked
+# tree widens to build output, so size rules exclude target/, .cache/,
+# node_modules/ explicitly; adopters with other generated trees add their
+# own excludes rather than re-enabling ignore-honoring.
+respect_gitignore: false
 extends:
   - ../modules/layout.yml
   - ../modules/cargo.yml
