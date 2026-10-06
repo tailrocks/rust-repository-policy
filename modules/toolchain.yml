@@ -1,3 +1,37 @@
 # S2 purpose: toolchain pins (rust-toolchain.toml, mise.toml, CI parity).
+# Pinned channel is exact (1.98.1); parity rules use normalize:
+# semver-minor per the gap probe, so patch/format drift (1.98.0,
+# "1.98") reconciles but minor drift fails. cross_file fails when the
+# source or (single-file) target is missing, so the parity rules also
+# enforce rust-toolchain.toml + mise.toml presence. Workflows without
+# any toolchain reference are tolerated (allow_missing_target).
+# CI regex covers dtolnay `toolchain:` pins and `rustup toolchain
+# install` spellings only; other installers are invisible to this rule.
 version: 1
-rules: []
+rules:
+  - id: toolchain-channel-pinned
+    kind: toml_path_equals
+    paths: "rust-toolchain.toml"
+    path: "$.toolchain.channel"
+    equals: "1.98.1"
+    level: error
+    message: 'rust-toolchain.toml channel MUST be exactly "1.98.1"'
+
+  - id: toolchain-mise-parity
+    kind: cross_file
+    source: {file: rust-toolchain.toml, extract: {toml: "$.toolchain.channel"}}
+    targets: [{file: mise.toml, extract: {toml: "$.tools.rust"}}]
+    normalize: semver-minor
+    level: error
+    message: "mise.toml [tools] rust MUST match rust-toolchain.toml channel (semver-minor)"
+
+  - id: toolchain-ci-parity
+    kind: cross_file
+    source: {file: rust-toolchain.toml, extract: {toml: "$.toolchain.channel"}}
+    targets:
+      files: ".github/workflows/*.yml"
+      extract: {regex: '(?:toolchain[@:]\s*|rustup toolchain install\s+)["'']?([0-9]+\.[0-9]+(?:\.[0-9]+)?)'}
+    normalize: semver-minor
+    allow_missing_target: true
+    level: error
+    message: "CI toolchain pins MUST match rust-toolchain.toml channel (semver-minor)"

@@ -26,6 +26,45 @@ config, never via `extends`.
 Probe: alint 0.17.0, pinned ref v0.16.1 rules.md, 94 native kinds,
 zero aggregate kinds.
 
+## Module rule IDs
+
+All 24 rules are `level: error`, use only the probed native kinds
+above (no command/spawn kinds: the trust gate loads those only from an
+adopter's own top-level config), and ship per-rule
+`accepted`/`rejected`/`boundary` fixtures under
+`fixtures/modules/<module>/<rule-id>/`. Accepted fixtures pass their
+whole module; rejected fixtures fail only the target rule; boundary
+fixtures pin edge semantics (documented pass/fail each).
+
+| Module | Rule IDs | Purpose |
+|---|---|---|
+| `modules/layout.yml` | `layout-crates-dir`, `layout-github-dir` (`dir_exists`, one rule each: lists are OR) | Required root dirs |
+| | `layout-root-files` (`file_absent`, `root_only`) | No `*.log`/`*.tmp`/`*.bak` at root (nested pass) |
+| | `layout-no-backup-files`, `layout-no-merge-leftovers` (`file_absent`) | No `*~`/`*.swp`/`*.swo`, no `*.orig`/`*.rej` |
+| `modules/cargo.yml` | `cargo-workspace-inherit-edition`, `-license`, `-lints` (`toml_path_equals` `{workspace: true}`) | Enumerated inherited keys (absent key fails) |
+| | `cargo-no-patch` (`toml_path_absent` `$.patch`, even empty) | Patch-section ban |
+| | `cargo-workspace-resolver` (`toml_path_equals` `"3"`) | Resolver pin (string, not integer) |
+| `modules/tests.yml` | `tests-dir-present` (`dir_contains` `crates/*` `tests`) | Every crate has `tests/` (a FILE named `tests` also satisfies) |
+| | `tests-only-rust` (`dir_only_contains` `*.rs`) | Only `*.rs` under `tests/` (`.gitkeep` fails) |
+| | `tests-no-test-files-in-src` (`file_absent` `*test*.rs`) | `*test*` files live in `tests/` (`latest.rs` fails: substring) |
+| `modules/docs.yml` | `docs-dir-present` (`dir_exists`) | `docs/` exists |
+| | `docs-root-only-allowed` (`file_absent`, `root_only`) | Root markdown allowlist: README/CHANGELOG/AGENTS/CLAUDE only |
+| `modules/toolchain.yml` | `toolchain-channel-pinned` (`toml_path_equals` `"1.98.1"`) | Exact channel pin (`"1.98"` fails) |
+| | `toolchain-mise-parity` (`cross_file`, `semver-minor`) | `mise.toml` rust matches channel (patch drift passes) |
+| | `toolchain-ci-parity` (`cross_file`, `semver-minor`, missing tolerated) | CI pins match channel; workflows without a pin pass |
+| `modules/ci.yml` | `ci-build-runs-on` (`yaml_path_equals` `ubuntu-latest`) | `build` job present and on `ubuntu-latest` (`ubuntu-24.04` fails) |
+| | `ci-no-pull-request-target` (`yaml_path_absent`) | No `pull_request_target` trigger (`pull_request` passes) |
+| `modules/renovate.yml` | `renovate-config-schema` (`json_schema_passes`, vendored `renovate.schema.json`) | Non-empty `extends` (`extends: []` fails; missing schema file fails) |
+| | `renovate-schema-url` (`json_path_equals` `$['$schema']`) | Canonical `$schema` URL (`http:` fails) |
+| `modules/size.yml` | `size-file-400` (`file_max_lines` 400, `**/*.rs` minus fixtures/testdata) | 400 lines pass, 401 fail |
+| | `size-lib-main-150` (`file_max_lines` 150, `lib.rs`/`main.rs`) | 150 lines pass, 151 fail |
+
+Assembled by `profiles/rust-strict-v1.yml` (extends all 8 modules,
+24 rules). Proven-unenforceable with native kinds (fixtures omitted):
+required root FILES (exists lists are OR, root not selectable,
+missing files pass content rules vacuously), dotfile bans (walker
+skips dotfiles), whole-repo aggregates (no sum kind: helper-owned).
+
 ## Helper owns (gaps)
 
 | Gap | Why native cannot |

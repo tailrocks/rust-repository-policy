@@ -1,4 +1,46 @@
 # S2 purpose: repository file/dir layout (required roots, forbidden strays).
-# Rules land here in Phase 2; empty list keeps the module valid meanwhile.
+# Required ROOT FILES are not expressible with the proven kinds:
+# file_exists/dir_exists lists are OR (any-match passes), dir_contains
+# cannot select the repo root (select "." matches nothing), and content
+# rules pass vacuously when the file is absent. So required roots here
+# are required root DIRS (one rule each: OR semantics forbid lists);
+# root FILE shape is governed by exclusion (layout-root-files) plus the
+# docs module's root markdown allowlist.
 version: 1
-rules: []
+rules:
+  - id: layout-crates-dir
+    kind: dir_exists
+    paths: [crates]
+    level: error
+    message: "First-party Rust workspace members MUST live under crates/"
+
+  - id: layout-github-dir
+    kind: dir_exists
+    paths: [.github]
+    level: error
+    message: "Repo MUST have .github/ (workflows live under .github/workflows/)"
+
+  - id: layout-root-files
+    kind: file_absent
+    paths:
+      include: ["*.log", "*.tmp", "*.bak"]
+    root_only: true
+    level: error
+    message: "Stray file at repo root (*.log/*.tmp/*.bak); remove it or move it out of root"
+
+  - id: layout-no-backup-files
+    kind: file_absent
+    paths:
+      include: ["**/*~", "**/*.swp", "**/*.swo"]
+    level: error
+    message: "Editor backup file MUST NOT be committed"
+
+  - id: layout-no-merge-leftovers
+    kind: file_absent
+    paths:
+      include: ["**/*.orig", "**/*.rej"]
+    level: error
+    message: "Merge-conflict leftovers (*.orig/*.rej) MUST NOT be committed"
+# NOTE: a .DS_Store ban is unenforceable: the alint walker skips
+# dotfiles entirely (probed 2026-10-06: root and nested .DS_Store both
+# invisible to file_absent), so such a rule would pass vacuously.
