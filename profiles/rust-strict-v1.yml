@@ -1,13 +1,21 @@
 # Strict Rust profile v1: extends the 8 local policy modules.
 # Adopters pin a release tag of this repo and extend this file.
+#
+# Trust boundary (alint 0.17.0, probed): `allow_out_of_root: true`,
+# `baseline:`, and command/spawn rule kinds are REFUSED in any
+# extends-reached config, so this profile declares none of them.
+# Consumers materialize the artifact in-root (.cache/rust-policy/),
+# so the adapter needs no out-of-root grant either.
 version: 1
-allow_out_of_root: true
 # Policy linting MUST NOT honor .gitignore: size/test/layout content rules
 # are otherwise one ignore-line away from evasion (probed 2026-10-06: a
 # gitignored 500-line file passed size-file-400). Trade-off: the walked
 # tree widens to build output, so size rules exclude target/, .cache/,
 # node_modules/ explicitly; adopters with other generated trees add their
 # own excludes rather than re-enabling ignore-honoring.
+# NOTE: this copy applies only to direct top-level use; it does NOT
+# propagate through extends, so the consumer adapter repeats the flag
+# (probed 2026-10-06 on alint 0.17.0).
 respect_gitignore: false
 extends:
   - ../modules/layout.yml

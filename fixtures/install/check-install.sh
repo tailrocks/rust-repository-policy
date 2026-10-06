@@ -190,8 +190,9 @@ else
   fi
 fi
 
-# 4. Gitignore-evasion probe: profile sets respect_gitignore=false, so a
-# gitignored 500-line file must still fail size-file-400 through extends.
+# 4. Gitignore-evasion probe: adapter sets respect_gitignore=false (the
+# profile's copy does not propagate through extends), so a gitignored
+# 500-line file must still fail size-file-400.
 d="$(fresh gitignore)"
 python3 - "$d" <<'EOF'
 import sys

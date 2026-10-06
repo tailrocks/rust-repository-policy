@@ -145,6 +145,15 @@ own setting does not propagate through `extends` (probed 2026-10-06 on
 alint 0.17.0 — a gitignored 500-line file passed `size-file-400`
 without it).
 
+Trust boundary (all probed on alint 0.17.0): `allow_out_of_root:
+true`, `baseline:`, and command/spawn rule kinds are refused in any
+extends-reached config, so the profile ships none of them. The adapter
+needs no `allow_out_of_root` either: every `extends` target and
+`schema_path` resolves in-root under `.cache/rust-policy/`. Direct
+`-c` use of the profile from a foreign lint root (e.g. the golden
+fixtures) needs `allow_out_of_root: true` on the invoking top-level
+config instead — the flag can never live in the profile itself.
+
 Verify: `alint validate-config .alint.yml` reports 37 rules and `alint
 check` passes. The install proof lives in `fixtures/install/` (the
 `ok/` consumer repo plus the `check-install.sh` release gate: clean
