@@ -1,0 +1,32 @@
+# S2 purpose: test path layout (tests/ dirs, file placement, per-file limits).
+# Test-in-production-file syntax checks stay helper-owned.
+# Per-file line limits for tests/ are enforced by modules/size.yml
+# (size-file-400 covers **/*.rs including tests/); no duplicate here.
+# NOTE: dir_contains/dir_only_contains require/allow are direct-child
+# basename globs, not recursive. require matches any direct child
+# (a FILE named tests/ also satisfies tests-dir-present).
+# S4 posture: selects target exactly crates/<group>/<package> (depth 2).
+# Flat crates are layout-no-flat-crate-manifest's ban; this module may
+# additionally match a flat crate's children as pseudo-packages
+# (fail-closed, same profile verdict, noisier path in the message).
+version: 1
+rules:
+  - id: tests-dir-present
+    kind: dir_contains
+    select: "crates/*/*"
+    require: ["tests"]
+    level: error
+    message: "Every crate under crates/<group>/ MUST have a tests/ dir"
+
+  - id: tests-only-rust
+    kind: dir_only_contains
+    select: "crates/*/*/tests"
+    allow: ["*.rs"]
+    level: error
+    message: "Only *.rs files allowed under tests/ (no notes/.gitkeep strays)"
+
+  - id: tests-no-test-files-in-src
+    kind: file_absent
+    paths: "crates/*/*/src/**/*test*.rs"
+    level: error
+    message: "Files with 'test' in the name MUST live under tests/, not src/"

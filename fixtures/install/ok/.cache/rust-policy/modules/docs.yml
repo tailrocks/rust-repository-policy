@@ -1,0 +1,20 @@
+# S2 purpose: docs location (docs/ presence, root-level doc bans).
+# Root markdown allowlist: README, CHANGELOG, agent instructions.
+# Presence of README/CHANGELOG themselves is not enforceable with the
+# proven kinds (no AND file-exists); only their exclusivity at root.
+version: 1
+rules:
+  - id: docs-dir-present
+    kind: dir_exists
+    paths: [docs]
+    level: error
+    message: "Repo MUST have docs/ (prose lives there, not at root)"
+
+  - id: docs-root-only-allowed
+    kind: file_absent
+    paths:
+      include: ["*.md", "*.mdx"]
+      exclude: [README.md, CHANGELOG.md, AGENTS.md, CLAUDE.md]
+    root_only: true
+    level: error
+    message: "Only README/CHANGELOG/AGENTS/CLAUDE markdown allowed at root; move the rest to docs/"

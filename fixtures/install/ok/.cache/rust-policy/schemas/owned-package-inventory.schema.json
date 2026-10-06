@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tailrocks/rust-repository-policy/schemas/owned-package-inventory.schema.json",
+  "title": "Owned package inventory (STUB)",
+  "description": "Phase 2 placeholder. Will enumerate the workspace packages the policy owns so the helper can check dependency direction and inventory parity.",
+  "type": "object",
+  "properties": {
+    "version": { "const": 1 },
+    "packages": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["version", "packages"],
+  "additionalProperties": false
+}

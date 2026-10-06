@@ -1,0 +1,123 @@
+# S2 purpose: repository file/dir layout (required roots, forbidden strays).
+# Required ROOT FILES use one single-path file_exists rule EACH (probed
+# 2026-10-06: OR-of-one works the same as the dir_exists rules below).
+# Only multi-file AND in ONE rule stays unenforceable (exists lists are
+# OR, dir_contains cannot select the repo root, and content rules pass
+# vacuously when the file is absent). S4 crates posture: members live at
+# exactly crates/<group>/<package> (depth 2); flat manifests and
+# depth-3+ manifests are banned below, cargo/tests rules select depth 2.
+version: 1
+rules:
+  - id: layout-crates-dir
+    kind: dir_exists
+    paths: [crates]
+    level: error
+    message: "First-party Rust workspace members MUST live under crates/"
+
+  - id: layout-github-dir
+    kind: dir_exists
+    paths: [.github]
+    level: error
+    message: "Repo MUST have .github/ (workflows live under .github/workflows/)"
+
+  - id: layout-root-files
+    kind: file_absent
+    paths:
+      include: ["*.log", "*.tmp", "*.bak"]
+    root_only: true
+    level: error
+    message: "Stray file at repo root (*.log/*.tmp/*.bak); remove it or move it out of root"
+
+  - id: layout-no-backup-files
+    kind: file_absent
+    paths:
+      include: ["**/*~", "**/*.swp", "**/*.swo"]
+    level: error
+    message: "Editor backup file MUST NOT be committed"
+
+  - id: layout-no-merge-leftovers
+    kind: file_absent
+    paths:
+      include: ["**/*.orig", "**/*.rej"]
+    level: error
+    message: "Merge-conflict leftovers (*.orig/*.rej) MUST NOT be committed"
+
+  - id: layout-requires-cargo-toml
+    kind: file_exists
+    paths: [Cargo.toml]
+    level: error
+    message: "Repo MUST have Cargo.toml at root (workspace manifest)"
+
+  - id: layout-requires-cargo-lock
+    kind: file_exists
+    paths: [Cargo.lock]
+    level: error
+    message: "Repo MUST have Cargo.lock at root (pinned dependency tree)"
+
+  - id: layout-requires-mise-toml
+    kind: file_exists
+    paths: [mise.toml]
+    level: error
+    message: "Repo MUST have mise.toml at root (toolchain provisioning)"
+
+  - id: layout-requires-rust-toolchain
+    kind: file_exists
+    paths: [rust-toolchain.toml]
+    level: error
+    message: "Repo MUST have rust-toolchain.toml at root (pinned channel)"
+
+  - id: layout-requires-rustfmt-toml
+    kind: file_exists
+    paths: [rustfmt.toml]
+    level: error
+    message: "Repo MUST have rustfmt.toml at root (formatting config)"
+
+  - id: layout-requires-clippy-toml
+    kind: file_exists
+    paths: [clippy.toml]
+    level: error
+    message: "Repo MUST have clippy.toml at root (lint config)"
+
+  - id: layout-requires-deny-toml
+    kind: file_exists
+    paths: [deny.toml]
+    level: error
+    message: "Repo MUST have deny.toml at root (cargo-deny config)"
+
+  - id: layout-requires-nextest-config
+    kind: file_exists
+    paths: [.config/nextest.toml]
+    level: error
+    message: "Repo MUST have .config/nextest.toml (test runner config)"
+
+  - id: layout-requires-renovate-json
+    kind: file_exists
+    paths: [renovate.json]
+    level: error
+    message: "Repo MUST have renovate.json at root (dependency updates)"
+
+  - id: layout-requires-alint-yml
+    kind: file_exists
+    paths: [.alint.yml]
+    level: error
+    message: "Repo MUST have .alint.yml at root (adopter lint entrypoint)"
+
+  - id: layout-no-flat-crate-manifest
+    kind: file_absent
+    paths: "crates/*/Cargo.toml"
+    level: error
+    message: "Flat crate manifests are forbidden: members MUST live at crates/<group>/<package> (S4)"
+
+  - id: layout-no-deep-crate-manifest
+    kind: file_absent
+    # Single depth-3 glob would leave depth-4+ silently unlinted (same
+    # bug class); the trailing /**/ covers depth 3 AND deeper while the
+    # three fixed segments keep legal depth-2 manifests passing.
+    paths: "crates/*/*/*/**/Cargo.toml"
+    level: error
+    message: "Over-nested crate manifests are forbidden: members MUST live at crates/<group>/<package> (S4)"
+# NOTE: a .DS_Store ban is unenforceable: the alint walker skips
+# dotfiles entirely for file_absent (probed 2026-10-06: root and nested
+# .DS_Store both invisible to file_absent), so such a rule would pass
+# vacuously. (file_exists DOES see dotfiles: .alint.yml and
+# .config/nextest.toml above are enforced.)

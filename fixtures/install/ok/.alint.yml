@@ -1,0 +1,18 @@
+# S2 consumer adapter: extend the materialized strict profile, add the
+# one command rule the trust gate requires to live in the adopter's own
+# top-level config (never via extends).
+version: 1
+# Anti-evasion MUST be repeated here: `respect_gitignore: false` set in
+# the extended profile does NOT propagate to the consumer (probed
+# 2026-10-06 on alint 0.17.0: a gitignored 500-line file passed
+# size-file-400 through the extends chain until this line was added).
+respect_gitignore: false
+extends:
+  - ./.cache/rust-policy/profiles/rust-strict-v1.yml
+rules:
+  - id: policy-gaps
+    kind: command_idempotent
+    command: ["rust-repository-policy", "check-gaps", "--root", "."]
+    files_from: stdout
+    files_pattern: "^\\S+ (\\S+?):\\d+:"
+    level: error
