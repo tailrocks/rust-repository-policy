@@ -3,8 +3,11 @@
 //! Native gap (proven): the alint file walker skips dotfiles entirely, so
 //! no native rule can reliably enumerate repository files. This inventory
 //! is built from `git ls-files` (tracked plus untracked-but-visible files,
-//! hidden dirs included), which is the authoritative source; a filesystem
-//! walk is used only when the root is not inside a git work tree or git is
+//! hidden dirs included; stale index entries for deleted files are
+//! dropped), unioned with a bounded worktree walk over the consumer
+//! domains (`.rs` files plus top-level `.github/workflows/*.yml|*.yaml`)
+//! so ignored-but-present files are still seen. A full filesystem walk is
+//! used only when the root is not inside a git work tree or git is
 //! unavailable.
 
 use std::collections::BTreeSet;
@@ -19,8 +22,18 @@ pub struct Inventory {
 
 impl Inventory {
     /// Collect the inventory for `root`: git-first, filesystem fallback.
+    ///
+    /// The git leg is unioned with a bounded worktree walk over the
+    /// consumer domains, so ignored-but-present files are seen exactly
+    /// as they are outside git work trees.
     pub fn collect(root: &Path) -> Inventory {
-        git_inventory(root).unwrap_or_else(|| fs_inventory(root))
+        match git_inventory(root) {
+            Some(mut inventory) => {
+                inventory.files.extend(fs_consumer_walk(root));
+                inventory
+            }
+            None => fs_inventory(root),
+        }
     }
 
     /// Inventory from an explicit file list (tests).
@@ -68,6 +81,8 @@ impl Inventory {
 
 /// `git ls-files` inventory: tracked + untracked-but-visible, NUL-separated.
 /// Paths come out relative to `root`. `None` when git is unusable.
+/// Stale index entries (paths that are not files on disk) are dropped so
+/// a deleted-but-unstaged file cannot fail the consumers' reads.
 fn git_inventory(root: &Path) -> Option<Inventory> {
     let output = Command::new("git")
         .arg("-C")
@@ -91,6 +106,7 @@ fn git_inventory(root: &Path) -> Option<Inventory> {
         .split(|b| *b == 0)
         .filter(|chunk| !chunk.is_empty())
         .map(|chunk| String::from_utf8_lossy(chunk).into_owned())
+        .filter(|rel| root.join(rel).is_file())
         .collect();
     Some(Inventory { files })
 }
@@ -99,11 +115,35 @@ fn git_inventory(root: &Path) -> Option<Inventory> {
 /// and `target/` directories.
 fn fs_inventory(root: &Path) -> Inventory {
     let mut files = BTreeSet::new();
-    fs_inner(root, root, &mut files);
+    fs_inner(root, root, &mut files, false);
     Inventory { files }
 }
 
-fn fs_inner(root: &Path, dir: &Path, out: &mut BTreeSet<String>) {
+/// Bounded worktree walk: only the consumer domains, hidden files
+/// included, `.git/` and `target/` excluded.
+fn fs_consumer_walk(root: &Path) -> BTreeSet<String> {
+    let mut files = BTreeSet::new();
+    fs_inner(root, root, &mut files, true);
+    files
+}
+
+/// True when `rel` is in a consumer domain: an `.rs` file outside any
+/// `target/` segment (mirrors [`Inventory::rs_files_under`]), or a
+/// top-level `.github/workflows/*.yml|*.yaml` (mirrors
+/// [`Inventory::workflow_files`]).
+fn is_consumer_file(rel: &str) -> bool {
+    if rel.split('/').any(|seg| seg == "target") {
+        return false;
+    }
+    if rel.ends_with(".rs") {
+        return true;
+    }
+    rel.starts_with(".github/workflows/")
+        && !rel[".github/workflows/".len()..].contains('/')
+        && (rel.ends_with(".yml") || rel.ends_with(".yaml"))
+}
+
+fn fs_inner(root: &Path, dir: &Path, out: &mut BTreeSet<String>, consumer_only: bool) {
     let entries = std::fs::read_dir(dir)
         .map(|r| r.collect::<Vec<_>>())
         .unwrap_or_default();
@@ -120,14 +160,16 @@ fn fs_inner(root: &Path, dir: &Path, out: &mut BTreeSet<String>) {
             {
                 continue;
             }
-            fs_inner(root, &path, out);
+            fs_inner(root, &path, out, consumer_only);
         } else if let Ok(rel) = path.strip_prefix(root) {
-            out.insert(
-                rel.components()
-                    .map(|c| c.as_os_str().to_string_lossy())
-                    .collect::<Vec<_>>()
-                    .join("/"),
-            );
+            let rel = rel
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+            if !consumer_only || is_consumer_file(&rel) {
+                out.insert(rel);
+            }
         }
     }
 }
@@ -169,5 +211,16 @@ mod tests {
     #[test]
     fn dotfiles_are_present() {
         assert!(sample().contains(".alint.yml"));
+    }
+
+    #[test]
+    fn consumer_filter_covers_both_domains() {
+        assert!(is_consumer_file("crates/a/src/lib.rs"));
+        assert!(is_consumer_file(".hidden/x.rs"));
+        assert!(is_consumer_file(".github/workflows/ci.yml"));
+        assert!(is_consumer_file(".github/workflows/ci.yaml"));
+        assert!(!is_consumer_file("crates/a/target/debug/x.rs"));
+        assert!(!is_consumer_file(".github/workflows/nested/extra.yml"));
+        assert!(!is_consumer_file("crates/a/Cargo.toml"));
     }
 }

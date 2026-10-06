@@ -4,8 +4,9 @@
 //! multisets: any stray finding fails the test.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 fn fixture_root(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -174,6 +175,142 @@ fn boundary_passes_exactly_at_budget_and_fails_one_below() {
     let files_below = run("boundary", &["--max-code-lines", "16", "--max-files", "1"]);
     assert_eq!(code(&files_below), 1);
     expect_rules(&files_below, &[("GAP-SIZE-002", 1)]);
+}
+
+/// Copy of a helper fixture under a unique temp dir, removed on drop.
+struct TempRoot {
+    path: PathBuf,
+}
+
+impl TempRoot {
+    fn from_fixture(name: &str, tag: &str) -> TempRoot {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let path =
+            std::env::temp_dir().join(format!("rrp-inventory-{tag}-{}-{id}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&path);
+        copy_tree(&fixture_root(name), &path);
+        TempRoot { path }
+    }
+
+    fn run(&self, extra: &[&str]) -> Output {
+        let bin = env!("CARGO_BIN_EXE_rust-repository-policy");
+        let mut args = vec!["check-gaps", "--root"];
+        let root_str = self.path.to_string_lossy().into_owned();
+        args.push(&root_str);
+        args.extend(extra.iter());
+        Command::new(bin)
+            .args(&args)
+            .output()
+            .expect("helper binary runs")
+    }
+
+    fn git(&self, args: &[&str]) {
+        let status = Command::new("git")
+            .arg("-C")
+            .arg(&self.path)
+            .args(args)
+            .status()
+            .expect("git runs");
+        assert!(
+            status.success(),
+            "git {args:?} failed in {}",
+            self.path.display()
+        );
+    }
+
+    /// Ignored-but-present wired defect: a production `#[test]` the git
+    /// leg cannot see (`--others --exclude-standard` skips ignored
+    /// files), which the worktree union must still surface.
+    fn arm_ignored_source(&self) {
+        std::fs::write(
+            self.path.join("crates/lib-a/src/evil.rs"),
+            "\n#[test]\nfn evil_probe() {}\n",
+        )
+        .expect("write ignored source");
+        let lib = self.path.join("crates/lib-a/src/lib.rs");
+        let mut text = std::fs::read_to_string(&lib).expect("read lib.rs");
+        text.push_str("mod evil;\n");
+        std::fs::write(&lib, text).expect("wire evil module");
+        std::fs::write(self.path.join(".gitignore"), "crates/lib-a/src/evil.rs\n")
+            .expect("write gitignore");
+        let ignored = Command::new("git")
+            .arg("-C")
+            .arg(&self.path)
+            .args(["check-ignore", "-q", "crates/lib-a/src/evil.rs"])
+            .status()
+            .expect("git check-ignore runs");
+        assert!(ignored.success(), "probe file must be git-ignored");
+    }
+}
+
+impl Drop for TempRoot {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+fn copy_tree(src: &Path, dst: &Path) {
+    std::fs::create_dir_all(dst).expect("create temp dir");
+    let mut entries: Vec<_> = std::fs::read_dir(src)
+        .expect("read fixture dir")
+        .collect::<Result<_, _>>()
+        .expect("read fixture entries");
+    entries.sort_by_key(|e| e.file_name());
+    for entry in entries {
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        if from.is_dir() {
+            copy_tree(&from, &to);
+        } else {
+            std::fs::copy(&from, &to).expect("copy fixture file");
+        }
+    }
+}
+
+#[test]
+fn stale_deleted_file_does_not_exit_two() {
+    let root = TempRoot::from_fixture("pass", "stale");
+    root.git(&["init", "-q"]);
+    root.git(&["add", "-A"]);
+    // Delete from disk without staging: the index still lists the file.
+    std::fs::remove_file(root.path.join("crates/lib-a/src/tests/extra.rs"))
+        .expect("remove fixture file");
+    let output = root.run(&[]);
+    assert_eq!(
+        code(&output),
+        0,
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(stdout(&output).is_empty());
+}
+
+#[test]
+fn ignored_wired_source_still_flags() {
+    let root = TempRoot::from_fixture("pass", "ignored");
+    root.git(&["init", "-q"]);
+    root.git(&["add", "-A"]);
+    root.arm_ignored_source();
+    let output = root.run(&[]);
+    assert_eq!(code(&output), 1);
+    expect_rules(&output, &[("GAP-TEST-001", 1)]);
+    let text = stdout(&output);
+    assert!(text.contains("crates/lib-a/src/evil.rs:2: direct test function"));
+}
+
+#[test]
+fn git_and_nogit_agree_on_identical_content() {
+    let root = TempRoot::from_fixture("pass", "parity");
+    root.git(&["init", "-q"]);
+    root.git(&["add", "-A"]);
+    root.arm_ignored_source();
+    let with_git = root.run(&[]);
+    std::fs::remove_dir_all(root.path.join(".git")).expect("remove .git");
+    let without_git = root.run(&[]);
+    assert_eq!(code(&with_git), 1);
+    assert_eq!(code(&without_git), code(&with_git));
+    assert_eq!(stdout(&without_git), stdout(&with_git));
 }
 
 #[test]
