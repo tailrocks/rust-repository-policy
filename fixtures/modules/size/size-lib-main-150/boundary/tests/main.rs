@@ -1,4 +1,5 @@
-//! Non-entry main.rs: exempt from the 150-line budget.
+//! Integration entry at 151 lines: FAILS size-lib-main-150 (fail edge;
+//! boundary/src/main.rs at exactly 150 is the pass edge).
 
 fn pad_0() {}
 fn pad_1() {}
@@ -148,4 +149,3 @@ fn pad_144() {}
 fn pad_145() {}
 fn pad_146() {}
 fn pad_147() {}
-fn pad_148() {}

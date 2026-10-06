@@ -59,7 +59,7 @@ fixtures pin edge semantics (documented pass/fail each).
 | `modules/renovate.yml` | `renovate-config-schema` (`json_schema_passes`, vendored `renovate.schema.json`) | Non-empty `extends` (`extends: []` fails; missing schema file fails) |
 | | `renovate-schema-url` (`json_path_equals` `$['$schema']`) | Canonical `$schema` URL (`http:` fails) |
 | `modules/size.yml` | `size-file-400` (`file_max_lines` 400, `**/*.rs` minus fixtures/testdata/target/.cache/node_modules) | 400 lines pass, 401 fail |
-| | `size-lib-main-150` (`file_max_lines` 150, `src/lib.rs`/`src/main.rs` minus target/.cache/node_modules) | `src/` entry points: 150 lines pass, 151 fail (`tests/main.rs` runners exempt at any size under 400) |
+| | `size-lib-main-150` (`file_max_lines` 150, S7 entries/indexes minus target/.cache/node_modules) | `src/lib.rs`, `src/main.rs`, `src/bin/` entries, `src/**/tests.rs` indexes, `tests/main.rs`, `tests/cases.rs`: 150 pass, 151 fail (case files, benches, examples exempt under `size-file-400`) |
 
 Assembled by `profiles/rust-strict-v1.yml` (extends all 8 modules,
 36 rules) with top-level `respect_gitignore: false`: policy linting
@@ -71,7 +71,7 @@ to build output, so the size rules exclude `target/`, `.cache/`,
 their own excludes rather than re-enabling ignore-honoring.
 Profile-level proof ships as `fixtures/golden-ok` (0 violations on a
 fully canonical package: `src/tests.rs` + `src/tests/<case>.rs` split
-plus a `tests/main.rs` integration runner) and
+plus a slim declarations-only `tests/main.rs` integration runner) and
 `fixtures/golden-bad` (exactly 5: `cargo-workspace-inherit-edition`,
 `tests-dir-present`, `layout-no-flat-crate-manifest`,
 `ci-build-runs-on`, and `size-file-400` via a gitignored file).

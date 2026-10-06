@@ -22,10 +22,14 @@ rules:
   - id: size-lib-main-150
     kind: file_max_lines
     paths:
-      # src/ entry points only: tests/main.rs integration runners,
-      # benches, and examples keep their own shape (S6).
-      include: ["**/src/lib.rs", "**/src/main.rs"]
+      # S7 150-line budget: crate entries (src/lib.rs, src/main.rs),
+      # thin binary entries (src/bin/ file and dir forms), unit-suite
+      # indexes (src/**/tests.rs), integration entries (tests/main.rs),
+      # and the case registry (tests/cases.rs). Case files
+      # (tests/<case>.rs, src/**/tests/<case>.rs), benches, and
+      # examples are out of scope (size-file-400 still applies).
+      include: ["**/src/lib.rs", "**/src/main.rs", "**/src/bin/*.rs", "**/src/bin/*/main.rs", "**/src/**/tests.rs", "**/tests/main.rs", "**/tests/cases.rs"]
       exclude: ["**/target/**", "**/.cache/**", "**/node_modules/**"]
     max_lines: 150
     level: error
-    message: "lib.rs/main.rs MUST stay under 150 lines; move logic into modules"
+    message: "S7 entry/index file MUST stay under 150 lines; move logic into modules"
