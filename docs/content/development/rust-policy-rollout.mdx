@@ -1,0 +1,22 @@
+---
+title: Strict Rust policy rollout
+description: Phase-gated rollout record for the shared Rust policy.
+---
+
+# Strict Rust policy rollout
+
+## Phase 1 exit evidence (2026-10-06)
+
+- Primary audit clones: `jackin` at
+  `868ce53519234f879d26a8bd2dffaa30fae2d729`, `velnor` at
+  `aae1ff63b492d33b7faee218c51799257664b4b1`.
+- Alint gap probe: `/tmp/alint-gap-probe-001/gap-table.md`
+  (fixtures `t1`–`t9`, alint 0.17.0).
+- Owner table: [Rule owners](/policy/rule-owners).
+- Decision: this repo is the shared policy home per contract S2.
+
+## Phase 2 (stub)
+
+Fill the 8 modules in `modules/` with native rules, implement the
+helper gap slices in `crates/tools/rust-repository-policy`, and pin
+adopter profiles to a release tag.

@@ -1,0 +1,14 @@
+# Strict Rust profile v1: extends the 8 local policy modules.
+# Adopters pin a release tag of this repo and extend this file.
+version: 1
+allow_out_of_root: true
+extends:
+  - ../modules/layout.yml
+  - ../modules/cargo.yml
+  - ../modules/tests.yml
+  - ../modules/docs.yml
+  - ../modules/toolchain.yml
+  - ../modules/ci.yml
+  - ../modules/renovate.yml
+  - ../modules/size.yml
+rules: []

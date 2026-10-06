@@ -1,0 +1,4 @@
+# S2 purpose: Cargo manifest and workspace shape (enumerated inheritable keys,
+# patch bans, workspace lints). Open-ended key coverage stays helper-owned.
+version: 1
+rules: []

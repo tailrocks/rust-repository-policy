@@ -1,0 +1,3 @@
+# S2 purpose: toolchain pins (rust-toolchain.toml, mise.toml, CI parity).
+version: 1
+rules: []

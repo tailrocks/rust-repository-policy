@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = [
+    # Policy workspace members. The helper crate below is the only
+    # member today; future policy tooling lands here.
+    "crates/tools/rust-repository-policy",
+]
+
+[workspace.package]
+edition = "2024"
+
+[workspace.lints.clippy]
+all = "deny"

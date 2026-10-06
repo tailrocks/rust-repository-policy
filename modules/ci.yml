@@ -1,0 +1,4 @@
+# S2 purpose: CI enumerated job/step declarations. Recipe-to-job set
+# parity stays helper-owned (JSONPath cannot extract YAML key names).
+version: 1
+rules: []

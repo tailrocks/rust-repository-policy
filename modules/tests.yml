@@ -1,0 +1,4 @@
+# S2 purpose: test path layout (tests/ dirs, file placement, per-file limits).
+# Test-in-production-file syntax checks stay helper-owned.
+version: 1
+rules: []

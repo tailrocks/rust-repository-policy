@@ -1,0 +1,42 @@
+---
+title: Rule owners
+description: Which checks native alint owns and which the helper owns.
+---
+
+# Rule owners
+
+S1 contract: native alint owns every check it can express; the
+`rust-repository-policy` helper owns only the narrow gaps. Trust gate:
+spawn/command rule kinds are allowed only in an adopter's own top-level
+config, never via `extends`.
+
+## Native alint owns
+
+| Check | Native kinds (probed 2026-10-06) |
+|---|---|
+| Manifest inheritance, enumerated keys | `toml_path_equals` deep-equals `{workspace: true}` |
+| Patch-section ban | `toml_path_absent` for `$.patch` |
+| Per-file line limits | `file_max_lines` |
+| Test path layout | `file_absent` + `dir_contains` + `dir_only_contains` (require/allow are direct-child basename globs, not recursive) |
+| Docs location | `file_absent` with `root_only` + include/exclude, plus `dir_exists` |
+| Toolchain pins + CI parity | `toml_path_equals` + cross-file `equals` (use `normalize: semver-minor` for format drift) |
+| CI enumerated jobs/steps | `yaml_path_equals` / `yaml_path_absent` (dashed keys need bracket notation) |
+| Renovate config | `json_path_equals` / `json_schema_passes` (JSONC-tolerant) |
+
+Probe: alint 0.17.0, pinned ref v0.16.1 rules.md, 94 native kinds,
+zero aggregate kinds.
+
+## Helper owns (gaps)
+
+| Gap | Why native cannot |
+|---|---|
+| Open-ended all-inheritable-keys check | Needs Cargo inheritable-key knowledge |
+| CI recipe-to-job set parity | JSONPath cannot extract YAML key names |
+| Size aggregates | No sum kind; use command-rule plumbing |
+| Rust syntax checks (test placement in production files, dependency direction, package inventory) | From contract, still to prove |
+
+## Open wording
+
+Exact strict-policy wording for the inheritable key list, the task
+registry source of truth, and size budget numbers plus units.
+Version skew 0.17.0 vs 0.16.1 not diffed.

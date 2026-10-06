@@ -1,0 +1,4 @@
+# S2 purpose: size budgets via command-rule plumbing. Aggregates (no native
+# sum kind) stay helper-owned; this module holds per-file native limits.
+version: 1
+rules: []

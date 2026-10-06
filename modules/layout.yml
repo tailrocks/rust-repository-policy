@@ -1,0 +1,4 @@
+# S2 purpose: repository file/dir layout (required roots, forbidden strays).
+# Rules land here in Phase 2; empty list keeps the module valid meanwhile.
+version: 1
+rules: []

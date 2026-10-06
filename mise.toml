@@ -1,0 +1,6 @@
+[tools]
+rust = "1.98.1"
+"cargo:cargo-nextest" = "0.9.146"
+# alint: UNRESOLVED — not in the mise registry (checked 2026-10-06;
+# `mise ls-remote alint` reports "not found"). Use the pinned local
+# alint 0.17.0 until a registry backend exists.

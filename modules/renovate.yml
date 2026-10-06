@@ -1,0 +1,3 @@
+# S2 purpose: Renovate config shape (extends present, schema conformance).
+version: 1
+rules: []
