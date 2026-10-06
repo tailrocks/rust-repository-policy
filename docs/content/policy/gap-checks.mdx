@@ -99,8 +99,9 @@ is adapted from the product-workspace gate: flat discovery replaced by
 `cargo metadata` packages, the exact-whitespace suite check replaced by
 a structural one, hard-coded fixture registries dropped.
 
-Production files are `src/**/*.rs` except `tests.rs` suites;
-`tests/`, benches, and examples may hold tests.
+Production files are `src/**/*.rs` except `tests.rs` suites and
+their `tests/` case files; `tests/`, benches, and examples may hold
+tests.
 
 - `GAP-TEST-001`: test implementation in a production file — `#[test]`
   / `rstest` / `test_case` / `path::test` (covers `tokio::test`-style
