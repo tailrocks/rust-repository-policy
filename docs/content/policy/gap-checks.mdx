@@ -14,8 +14,12 @@ The helper never compiles the checked workspace: Cargo facts come from
 read-only `cargo metadata` runs (`--no-deps` for inventory/shape facts,
 full resolve for the dependency graph). Everything else is parsed from
 files. File discovery uses `git ls-files` (tracked plus
-untracked-but-visible, hidden dirs included) with a filesystem-walk
-fallback outside git work trees.
+untracked-but-visible, hidden dirs included; stale index entries for
+deleted files are dropped) unioned with a bounded worktree walk over
+the consumer domains (`.rs` files plus top-level
+`.github/workflows/*.yml|*.yaml`), so ignored-but-present files are
+still seen — with a full filesystem-walk fallback outside git work
+trees.
 
 ## Usage
 
