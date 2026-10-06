@@ -1,3 +1,5 @@
+mod extra;
+
 use super::greet;
 
 #[test]

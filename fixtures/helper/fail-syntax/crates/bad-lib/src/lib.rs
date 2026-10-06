@@ -5,6 +5,7 @@ pub mod case_include;
 pub mod case_inline;
 pub mod case_macro;
 pub mod case_path;
+pub mod other;
 
 #[cfg(test)]
 mod tests;

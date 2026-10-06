@@ -27,6 +27,10 @@ rules:
 
   - id: tests-no-test-files-in-src
     kind: file_absent
-    paths: "crates/*/*/src/**/*test*.rs"
+    paths:
+      include: ["crates/*/*/src/**/*test*.rs"]
+      # Canonical unit-test suites are helper-owned (S6): the sibling
+      # tests.rs plus its tests/<case>.rs splits never trip this rule.
+      exclude: ["crates/*/*/src/**/tests.rs", "crates/*/*/src/**/tests/**"]
     level: error
-    message: "Files with 'test' in the name MUST live under tests/, not src/"
+    message: "Non-suite files with 'test' in the name MUST live under tests/, not src/"

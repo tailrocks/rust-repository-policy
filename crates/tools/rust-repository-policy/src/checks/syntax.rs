@@ -20,14 +20,18 @@
 //!   carrying test attributes, and `include!` of test-named files. Also
 //!   used when a production file cannot be parsed.
 //! - `GAP-TEST-002`: non-canonical test suite path — `#[path]` on a test
-//!   suite module, child modules declared inside a `tests.rs` suite, or
-//!   files under a `src/tests/` split directory.
+//!   suite module, inline or `#[path]` child modules inside a `tests.rs`
+//!   suite, or files under a `<parent>/tests/` case directory with no
+//!   sibling `<parent>/tests.rs`. Canonical case splits — external
+//!   `mod <case>;` in `tests.rs` resolving to `tests/<case>.rs` — are
+//!   clean, so large suites can stay under the per-file size budget.
 //! - `GAP-TEST-003`: orphan — an `src/` file unreachable from any crate
 //!   root through `mod` declarations.
 //!
-//! Scope: production files are `src/**/*.rs` except `tests.rs` suites.
-//! Integration tests (`tests/`), benches, and examples may hold tests.
-//! `dev-dependencies` are irrelevant here; only file placement matters.
+//! Scope: production files are `src/**/*.rs` except `tests.rs` suites
+//! and `tests/` case files. Integration tests (`tests/`), benches, and
+//! examples may hold tests. `dev-dependencies` are irrelevant here; only
+//! file placement matters.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -80,12 +84,41 @@ pub fn check(root: &Path, meta: &Metadata, inventory: &Inventory) -> Result<Vec<
     Ok(findings)
 }
 
-/// True when `file` is directly under (or in) a `src/tests/` split directory.
-fn is_split_suite_file(file: &Path, src: &Path) -> bool {
-    file.strip_prefix(src)
-        .ok()
-        .and_then(|rel| rel.components().next())
-        .is_some_and(|first| first.as_os_str() == "tests")
+/// True when `file` sits under a `<parent>/tests/` case directory (any
+/// depth under `src/`; the `tests` segment must be a directory, never the
+/// file name itself).
+fn is_case_dir_file(file: &Path, src: &Path) -> bool {
+    let Some(rel) = file.strip_prefix(src).ok() else {
+        return false;
+    };
+    let components: Vec<_> = rel.components().collect();
+    components.len() > 1
+        && components[..components.len() - 1]
+            .iter()
+            .any(|c| c.as_os_str() == "tests")
+}
+
+/// True when the `<parent>/tests/` case directory holding `file` has a
+/// sibling `<parent>/tests.rs` suite file present in the inventory.
+fn has_sibling_suite(
+    file: &Path,
+    src: &Path,
+    parsed: &BTreeMap<PathBuf, Option<syn::File>>,
+) -> bool {
+    let Some(rel) = file.strip_prefix(src).ok() else {
+        return false;
+    };
+    let components: Vec<_> = rel.components().collect();
+    let Some(idx) = components[..components.len().saturating_sub(1)]
+        .iter()
+        .rposition(|c| c.as_os_str() == "tests")
+    else {
+        return false;
+    };
+    let mut sibling = src.to_path_buf();
+    sibling.extend(components[..idx].iter().map(|c| c.as_os_str()));
+    sibling.push("tests.rs");
+    parsed.contains_key(&sibling)
 }
 
 /// `GAP-TEST-001` / `GAP-TEST-002`: per-file syntax findings.
@@ -98,15 +131,19 @@ fn check_test_placement(
 ) {
     for file in files {
         let rel = rel_path(file, root);
-        if is_split_suite_file(file, src) {
-            // Already non-canonical by location; skip the other scans.
-            findings.push(Finding::new(
-                "GAP-TEST-002",
-                rel,
-                1,
-                "split-out test file under src/tests/ instead of a single sibling tests.rs",
-                "move the tests into the canonical sibling tests.rs and delete this file",
-            ));
+        if is_case_dir_file(file, src) {
+            // Case files may hold tests either way; only the suite-less
+            // (non-canonical) ones are flagged here. Canonical case files
+            // still go through the orphan check below.
+            if !has_sibling_suite(file, src, parsed) {
+                findings.push(Finding::new(
+                    "GAP-TEST-002",
+                    rel,
+                    1,
+                    "split-out test file under src/tests/ instead of a single sibling tests.rs",
+                    "move the tests into the canonical sibling tests.rs and delete this file",
+                ));
+            }
             continue;
         }
         let Some(Some(ast)) = parsed.get(file) else {
@@ -114,13 +151,13 @@ fn check_test_placement(
         };
         let is_suite = file.file_name().is_some_and(|n| n == "tests.rs");
         if is_suite {
-            if let Some(line) = suite_child_module_line(&ast.items) {
+            if let Some(item_finding) = suite_child_violation(&ast.items) {
                 findings.push(Finding::new(
-                    "GAP-TEST-002",
+                    item_finding.rule,
                     rel,
-                    line,
-                    "tests.rs declares child modules instead of keeping every test inline",
-                    "inline the child module into this file",
+                    item_finding.line,
+                    item_finding.message,
+                    item_finding.correction,
                 ));
             }
             continue;
@@ -339,14 +376,35 @@ fn has_path_attr(module: &ItemMod) -> bool {
     module.attrs.iter().any(|a| a.path().is_ident("path"))
 }
 
-/// 1-based line of the first child `mod` declaration inside a suite file.
-fn suite_child_module_line(items: &[Item]) -> Option<usize> {
-    struct Finder(Option<usize>);
+/// First non-canonical child `mod` inside a suite file. Canonical case
+/// splits are external `mod <case>;` declarations (resolving to
+/// `tests/<case>.rs`); inline bodies and `#[path]` overrides stay
+/// `GAP-TEST-002`.
+fn suite_child_violation(items: &[Item]) -> Option<ItemFinding> {
+    struct Finder(Option<ItemFinding>);
 
     impl<'ast> syn::visit::Visit<'ast> for Finder {
         fn visit_item_mod(&mut self, module: &'ast ItemMod) {
-            if self.0.is_none() {
-                self.0 = Some(module.mod_token.span().start().line.max(1));
+            if self.0.is_some() {
+                return;
+            }
+            let name = module.ident.to_string();
+            if module.content.is_some() {
+                self.0 = Some(ItemFinding::suite_path(
+                    module.mod_token.span().start().line.max(1),
+                    format!(
+                        "inline child module `{name}` in tests.rs instead of a canonical case split"
+                    ),
+                    format!("move the module body to tests/{name}.rs and declare `mod {name};`"),
+                ));
+            } else if has_path_attr(module) {
+                self.0 = Some(ItemFinding::suite_path(
+                    attr_line(&module.attrs),
+                    format!(
+                        "child module `{name}` in tests.rs uses #[path] instead of resolving to tests/{name}.rs"
+                    ),
+                    "drop #[path] so the module resolves to the canonical tests/<case>.rs file",
+                ));
             }
         }
     }
@@ -517,7 +575,7 @@ fn check_orphans(
     }
 
     for file in files {
-        if is_split_suite_file(file, src) {
+        if is_case_dir_file(file, src) && !has_sibling_suite(file, src, parsed) {
             continue; // Already flagged as GAP-TEST-002.
         }
         if parsed.get(file).is_some_and(Option::is_none) {
@@ -758,9 +816,27 @@ mod tests {
     #[test]
     fn suite_children_detected() {
         let ast = syn::parse_file("mod inline {}\n").expect("parses");
-        assert_eq!(suite_child_module_line(&ast.items), Some(1));
+        let finding = suite_child_violation(&ast.items).expect("inline flagged");
+        assert_eq!(finding.rule, "GAP-TEST-002");
+        assert_eq!(finding.line, 1);
         let clean = syn::parse_file("#[test]\nfn t() {}\n").expect("parses");
-        assert_eq!(suite_child_module_line(&clean.items), None);
+        assert!(suite_child_violation(&clean.items).is_none());
+    }
+
+    #[test]
+    fn suite_canonical_case_split_is_clean() {
+        for text in ["mod extra;\n", "#[cfg(test)]\nmod extra;\n"] {
+            let ast = syn::parse_file(text).expect("parses");
+            assert!(suite_child_violation(&ast.items).is_none());
+        }
+    }
+
+    #[test]
+    fn suite_path_case_split_flagged() {
+        let ast = syn::parse_file("#[path = \"other.rs\"]\nmod extra;\n").expect("parses");
+        let finding = suite_child_violation(&ast.items).expect("path flagged");
+        assert_eq!(finding.rule, "GAP-TEST-002");
+        assert_eq!(finding.line, 1);
     }
 
     #[test]
