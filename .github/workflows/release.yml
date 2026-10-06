@@ -1,0 +1,60 @@
+# Release: on tag v* build the helper for both platforms, pack one
+# versioned artifact (modules + profiles + schemas + both binaries +
+# SHA-256 sidecar), and attach it to the GitHub release for the tag.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            plat: linux-x86_64
+          - runner: macos-14
+            plat: macos-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.98.1 --profile minimal
+      - name: Build helper
+        run: cargo +1.98.1 build --release --locked -p rust-repository-policy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: helper-${{ matrix.plat }}
+          path: target/release/rust-repository-policy
+          if-no-files-found: error
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: bins
+      - name: Assemble versioned artifact
+        run: |
+          set -eu
+          ver="${GITHUB_REF_NAME#v}"
+          dist="rust-repository-policy-$ver"
+          rm -rf "$dist" "$dist.tar.gz" "$dist.tar.gz.sha256"
+          mkdir -p "$dist/bin/linux-x86_64" "$dist/bin/macos-arm64"
+          cp -r modules profiles schemas LICENSE-MIT LICENSE-APACHE "$dist/"
+          cp "bins/helper-linux-x86_64/rust-repository-policy" "$dist/bin/linux-x86_64/"
+          cp "bins/helper-macos-arm64/rust-repository-policy" "$dist/bin/macos-arm64/"
+          tar -czf "$dist.tar.gz" "$dist"
+          sha256sum "$dist.tar.gz" > "$dist.tar.gz.sha256"
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            rust-repository-policy-*.tar.gz
+            rust-repository-policy-*.tar.gz.sha256

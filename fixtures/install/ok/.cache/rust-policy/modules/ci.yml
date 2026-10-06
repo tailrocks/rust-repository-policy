@@ -1,0 +1,22 @@
+# S2 purpose: CI enumerated job/step declarations. Recipe-to-job set
+# parity stays helper-owned (JSONPath cannot extract YAML key names).
+# yaml_path_equals fails on zero-match, so ci-build-runs-on also
+# requires the build job's presence in every workflow file. Dashed keys
+# need bracket notation ($.jobs.build['runs-on']); dot form is a load
+# error. `on:` stays a string key (no YAML 1.1 bool coercion observed).
+version: 1
+rules:
+  - id: ci-build-runs-on
+    kind: yaml_path_equals
+    paths: ".github/workflows/*.yml"
+    path: "$.jobs.build['runs-on']"
+    equals: ubuntu-latest
+    level: error
+    message: "Every workflow MUST have a build job on ubuntu-latest"
+
+  - id: ci-no-pull-request-target
+    kind: yaml_path_absent
+    paths: ".github/workflows/*.yml"
+    path: "$.on.pull_request_target"
+    level: error
+    message: "pull_request_target trigger is forbidden (privileged-context risk)"

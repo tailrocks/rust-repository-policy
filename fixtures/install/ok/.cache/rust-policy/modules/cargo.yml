@@ -1,0 +1,44 @@
+# S2 purpose: Cargo manifest and workspace shape (enumerated inheritable keys,
+# patch bans, workspace lints). Open-ended key coverage stays helper-owned.
+# Enumerated keys pinned here: edition, license, lints. Absent key fails
+# (zero-match = violation), so each rule also requires the key's presence.
+version: 1
+rules:
+  - id: cargo-workspace-inherit-edition
+    kind: toml_path_equals
+    paths: "crates/*/*/Cargo.toml"
+    path: "$.package.edition"
+    equals: {workspace: true}
+    level: error
+    message: "Member MUST inherit edition (edition.workspace = true)"
+
+  - id: cargo-workspace-inherit-license
+    kind: toml_path_equals
+    paths: "crates/*/*/Cargo.toml"
+    path: "$.package.license"
+    equals: {workspace: true}
+    level: error
+    message: "Member MUST inherit license (license.workspace = true)"
+
+  - id: cargo-workspace-inherit-lints
+    kind: toml_path_equals
+    paths: "crates/*/*/Cargo.toml"
+    path: "$.lints"
+    equals: {workspace: true}
+    level: error
+    message: "Member MUST inherit lints ([lints] workspace = true)"
+
+  - id: cargo-no-patch
+    kind: toml_path_absent
+    paths: ["Cargo.toml", "crates/*/*/Cargo.toml"]
+    path: "$.patch"
+    level: error
+    message: "[patch] sections are forbidden (vendored source drift)"
+
+  - id: cargo-workspace-resolver
+    kind: toml_path_equals
+    paths: "Cargo.toml"
+    path: "$.workspace.resolver"
+    equals: "3"
+    level: error
+    message: 'Workspace resolver MUST be "3" (string, not integer)'

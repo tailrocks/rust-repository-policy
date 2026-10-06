@@ -88,6 +88,78 @@ helper-owned).
 | Size aggregates | No sum kind; use command-rule plumbing |
 | Rust syntax checks (test placement in production files, dependency direction, package inventory) | From contract, still to prove |
 
+## Release install
+
+Each `v*` tag ships one versioned artifact,
+`rust-repository-policy-<ver>.tar.gz` (plus a `.sha256` sidecar),
+containing `modules/`, `profiles/`, `schemas/`, and the helper binaries
+under `bin/linux-x86_64/` and `bin/macos-arm64/`.
+
+Pins (probed; newer versions not yet validated):
+
+- alint `0.17.0` — e.g. `cargo install alint --version 0.17.0 --locked`
+  (also Homebrew `asamarts/alint`, npm, PyPI; not in the Mise registry
+  as of 2026-10-06).
+- Mise `[tools] rust = "1.98.1"`, matching `rust-toolchain.toml`
+  (`toolchain-channel-pinned` enforces the channel exactly; the parity
+  rules reconcile patch drift).
+- Helper `rust-repository-policy` at the release tag version, on `PATH`.
+
+Materialize into `.cache/rust-policy/` (the size rules exclude `.cache/`):
+
+```sh
+ver=0.1.0
+curl -LO "https://github.com/tailrocks/rust-repository-policy/releases/download/v$ver/rust-repository-policy-$ver.tar.gz"
+curl -LO "https://github.com/tailrocks/rust-repository-policy/releases/download/v$ver/rust-repository-policy-$ver.tar.gz.sha256"
+sha256sum -c "rust-repository-policy-$ver.tar.gz.sha256"
+rm -rf .cache/rust-policy && mkdir -p .cache/rust-policy
+tar -xzf "rust-repository-policy-$ver.tar.gz" -C .cache/rust-policy --strip-components=1
+install -m755 .cache/rust-policy/bin/macos-arm64/rust-repository-policy ~/.local/bin/
+```
+
+Keep `.cache/` gitignored and re-run materialization in CI before
+`alint check`. Vendor `schemas/renovate.schema.json` to
+`renovate.schema.json` at the repo root (`schema_path` resolves at the
+lint root), and add the three `policy/*.json` registries (see [Gap
+checks](/policy/gap-checks)).
+
+Adopter `.alint.yml` — the profile plus the one trust-gated command
+rule, with the anti-evasion flag repeated top-level:
+
+```yaml
+version: 1
+respect_gitignore: false
+extends:
+  - ./.cache/rust-policy/profiles/rust-strict-v1.yml
+rules:
+  - id: policy-gaps
+    kind: command_idempotent
+    command: ["rust-repository-policy", "check-gaps", "--root", "."]
+    files_from: stdout
+    files_pattern: "^\\S+ (\\S+?):\\d+:"
+    level: error
+```
+
+The top-level `respect_gitignore: false` is load-bearing: the profile's
+own setting does not propagate through `extends` (probed 2026-10-06 on
+alint 0.17.0 — a gitignored 500-line file passed `size-file-400`
+without it).
+
+Trust boundary (all probed on alint 0.17.0): `allow_out_of_root:
+true`, `baseline:`, and command/spawn rule kinds are refused in any
+extends-reached config, so the profile ships none of them. The adapter
+needs no `allow_out_of_root` either: every `extends` target and
+`schema_path` resolves in-root under `.cache/rust-policy/`. Direct
+`-c` use of the profile from a foreign lint root (e.g. the golden
+fixtures) needs `allow_out_of_root: true` on the invoking top-level
+config instead — the flag can never live in the profile itself.
+
+Verify: `alint validate-config .alint.yml` reports 37 rules and `alint
+check` passes. The install proof lives in `fixtures/install/` (the
+`ok/` consumer repo plus the `check-install.sh` release gate: clean
+pass, one mutation per module, one helper-gap defect, and the
+exactly-one-invocation count).
+
 ## Open wording
 
 Exact strict-policy wording for the inheritable key list, the task

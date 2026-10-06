@@ -1,0 +1,23 @@
+# S2 purpose: Renovate config shape (extends present, schema conformance).
+# schema_path resolves relative to the LINT ROOT (adopter tree), never
+# to this module file, so adopters vendor the canonical schema:
+# copy schemas/renovate.schema.json from a release tag to
+# renovate.schema.json at repo root. A missing schema file is a clean
+# violation (not a crash), so renovate-config-schema enforces both
+# vendoring and conformance; the schema requires non-empty extends.
+version: 1
+rules:
+  - id: renovate-config-schema
+    kind: json_schema_passes
+    paths: "renovate.json"
+    schema_path: renovate.schema.json
+    level: error
+    message: "renovate.json MUST conform to the vendored renovate.schema.json (non-empty extends)"
+
+  - id: renovate-schema-url
+    kind: json_path_equals
+    paths: "renovate.json"
+    path: "$['$schema']"
+    equals: "https://docs.renovatebot.com/renovate-schema.json"
+    level: error
+    message: "renovate.json MUST declare the canonical $schema URL (also requires its presence)"
