@@ -1,0 +1,5 @@
+[package]
+name = "a"
+edition.workspace = true
+license.workspace = true
+

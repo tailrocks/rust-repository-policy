@@ -1,0 +1,6 @@
+[package]
+name = "a"
+license.workspace = true
+
+[lints]
+workspace = true
