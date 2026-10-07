@@ -90,9 +90,12 @@ per crate.
 - `GAP-SIZE-001`: crate over the code-line budget (default 6000).
   Counting is token-aware: blank lines and comments (line, nestable
   block) are excluded; string/character content counts as code.
-  Findings attach to the crate manifest at line 1.
+  Test-classified files (`tests/**`, `src/**/tests.rs`,
+  `src/**/tests/**`) are excluded from the total — tests do not count
+  as production code. Findings attach to the crate manifest at line 1.
 - `GAP-SIZE-002`: crate over the `.rs` file-count budget (default 60),
-  counted under the package dir excluding `target/`.
+  counted under the package dir excluding `target/` and the same
+  test-classified files.
 
 ### Rust syntax: test placement
 

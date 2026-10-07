@@ -9,6 +9,12 @@
 //!
 //! - `GAP-SIZE-001`: crate exceeds the code-line budget (default 6000).
 //! - `GAP-SIZE-002`: crate exceeds the file-count budget (default 60).
+//!
+//! Test-classified files are excluded from both aggregates (S7: tests do
+//! not count as production code): `tests/**` integration tests,
+//! `src/**/tests.rs` canonical unit suites, and `src/**/tests/**`
+//! canonical case splits. Production hidden under `tests/` is the
+//! tests-module placement rules' business, not the size aggregate's.
 
 use std::path::Path;
 
@@ -36,7 +42,11 @@ pub fn check(
             continue;
         };
         let prefix = rel_path(dir, root);
-        let files = inventory.rs_files_under(root, &prefix);
+        let files: Vec<_> = inventory
+            .rs_files_under(root, &prefix)
+            .into_iter()
+            .filter(|file| !is_test_file(dir, file))
+            .collect();
         let mut code_lines = 0;
         for file in &files {
             let text = read_text(file)?;
@@ -72,6 +82,32 @@ pub fn check(
         }
     }
     Ok(findings)
+}
+
+/// True when `file` is test-classified relative to the package `dir`:
+/// `tests/**`, `src/**/tests.rs`, or `src/**/tests/**`. Benches,
+/// examples, and build scripts stay counted.
+fn is_test_file(dir: &Path, file: &Path) -> bool {
+    file.strip_prefix(dir).is_ok_and(is_test_path)
+}
+
+/// True for package-relative test-classified paths (see [`is_test_file`]).
+fn is_test_path(pkg_rel: &Path) -> bool {
+    let mut components = pkg_rel.components();
+    let Some(top) = components.next() else {
+        return false;
+    };
+    if top.as_os_str() == "tests" {
+        return true;
+    }
+    if top.as_os_str() != "src" {
+        return false;
+    }
+    let rest: Vec<_> = components.collect();
+    let Some((name, dirs)) = rest.split_last() else {
+        return false;
+    };
+    name.as_os_str() == "tests.rs" || dirs.iter().any(|d| d.as_os_str() == "tests")
 }
 
 /// Count lines containing at least one code token: every line except
@@ -316,5 +352,48 @@ mod tests {
     fn string_with_test_text_counts_as_code_not_comment() {
         let text = "const T: &str = \"#[test] fn fake() {}\";\n";
         assert_eq!(count_code_lines(text), 1);
+    }
+
+    #[test]
+    fn test_paths_are_excluded() {
+        for rel in [
+            "tests/it.rs",
+            "tests/common/helpers.rs",
+            "src/tests.rs",
+            "src/foo/tests.rs",
+            "src/tests/case.rs",
+            "src/foo/tests/bar.rs",
+        ] {
+            assert!(is_test_path(Path::new(rel)), "{rel} must be excluded");
+        }
+    }
+
+    #[test]
+    fn production_paths_stay_counted() {
+        for rel in [
+            "src/lib.rs",
+            "src/main.rs",
+            "src/api.rs",
+            "src/foo_tests.rs",
+            "src/testing.rs",
+            "src/my_tests/mod.rs",
+            "src/tests.rs.inc.rs",
+            "testing/foo.rs",
+            "tests-utils/x.rs",
+            "benches/bench.rs",
+            "examples/demo.rs",
+            "build.rs",
+        ] {
+            assert!(!is_test_path(Path::new(rel)), "{rel} must stay counted");
+        }
+    }
+
+    #[test]
+    fn exclusion_is_relative_to_the_package_dir() {
+        let dir = Path::new("/r/crates/mixed");
+        assert!(is_test_file(dir, &dir.join("tests/it.rs"),));
+        assert!(is_test_file(dir, &dir.join("src/tests.rs")));
+        assert!(!is_test_file(dir, &dir.join("src/lib.rs")));
+        assert!(!is_test_file(dir, Path::new("/r/crates/other/tests.rs"),));
     }
 }

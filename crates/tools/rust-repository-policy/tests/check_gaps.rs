@@ -97,9 +97,17 @@ fn fail_ci_reports_both_parity_directions() {
 
 #[test]
 fn fail_size_reports_both_aggregates_under_small_budgets() {
-    let output = run("fail-size", &["--max-code-lines", "10", "--max-files", "2"]);
+    let output = run("fail-size", &["--max-code-lines", "10", "--max-files", "1"]);
     assert_eq!(code(&output), 1);
     expect_rules(&output, &[("GAP-SIZE-001", 1), ("GAP-SIZE-002", 1)]);
+    // Production only: 12 code lines across lib.rs + extra.rs in 2 files.
+    // The tests.rs suite (5 lines) and tests/big.rs (25 lines) are excluded.
+    let text = stdout(&output);
+    assert!(
+        text.contains("has 12 code lines, over the 10 budget"),
+        "{text}"
+    );
+    assert!(text.contains("has 2 files, over the 1 budget"), "{text}");
 }
 
 #[test]
@@ -167,12 +175,72 @@ fn fail_missing_reports_all_three_missing_registries() {
 
 #[test]
 fn boundary_passes_exactly_at_budget_and_fails_one_below() {
-    let exact = run("boundary", &["--max-code-lines", "16", "--max-files", "2"]);
+    // Production only: lib.rs holds 11 code lines in 1 file; the sibling
+    // tests.rs suite (5 lines) is excluded from both aggregates.
+    let exact = run("boundary", &["--max-code-lines", "11", "--max-files", "1"]);
     assert_eq!(code(&exact), 0, "stdout:\n{}", stdout(&exact));
-    let lines_below = run("boundary", &["--max-code-lines", "15", "--max-files", "2"]);
+    let lines_below = run("boundary", &["--max-code-lines", "10", "--max-files", "1"]);
     assert_eq!(code(&lines_below), 1);
     expect_rules(&lines_below, &[("GAP-SIZE-001", 1)]);
-    let files_below = run("boundary", &["--max-code-lines", "16", "--max-files", "1"]);
+    let files_below = run("boundary", &["--max-code-lines", "11", "--max-files", "0"]);
+    assert_eq!(code(&files_below), 1);
+    expect_rules(&files_below, &[("GAP-SIZE-002", 1)]);
+}
+
+#[test]
+fn size_tests_only_package_reports_zero_zero() {
+    // The package holds only tests/it.rs + tests/other.rs (25 code lines
+    // total) and no src/: both aggregates must be 0.
+    let output = run(
+        "size-tests-only",
+        &["--max-code-lines", "0", "--max-files", "0"],
+    );
+    assert_eq!(code(&output), 0, "stdout:\n{}", stdout(&output));
+    assert!(stdout(&output).is_empty());
+}
+
+#[test]
+fn size_mixed_package_counts_production_only() {
+    // Production: lib.rs (6 lines) + api.rs (3 lines) in 2 files. The
+    // src/tests.rs suite, src/tests/case.rs, and both tests/*.rs files
+    // (38 excluded lines total) must not move these numbers.
+    let exact = run("size-tests", &["--max-code-lines", "9", "--max-files", "2"]);
+    assert_eq!(code(&exact), 0, "stdout:\n{}", stdout(&exact));
+    let lines_below = run("size-tests", &["--max-code-lines", "8", "--max-files", "2"]);
+    assert_eq!(code(&lines_below), 1);
+    expect_rules(&lines_below, &[("GAP-SIZE-001", 1)]);
+    let text = stdout(&lines_below);
+    assert!(
+        text.contains("has 9 code lines, over the 8 budget"),
+        "{text}"
+    );
+    let files_below = run("size-tests", &["--max-code-lines", "9", "--max-files", "1"]);
+    assert_eq!(code(&files_below), 1);
+    expect_rules(&files_below, &[("GAP-SIZE-002", 1)]);
+    let text = stdout(&files_below);
+    assert!(text.contains("has 2 files, over the 1 budget"), "{text}");
+}
+
+#[test]
+fn size_edge_empty_tests_dir_and_lone_suite() {
+    // Production: lib.rs alone (5 lines, 1 file). The tests/ dir holds no
+    // Rust sources and the lone src/tests.rs index (no src/tests/ split)
+    // is excluded.
+    let exact = run(
+        "size-tests-edge",
+        &["--max-code-lines", "5", "--max-files", "1"],
+    );
+    assert_eq!(code(&exact), 0, "stdout:\n{}", stdout(&exact));
+    let lines_below = run(
+        "size-tests-edge",
+        &["--max-code-lines", "4", "--max-files", "1"],
+    );
+    assert_eq!(code(&lines_below), 1);
+    expect_rules(&lines_below, &[("GAP-SIZE-001", 1)]);
+    let files_below = run(
+        "size-tests-edge",
+        &["--max-code-lines", "5", "--max-files", "0"],
+    );
     assert_eq!(code(&files_below), 1);
     expect_rules(&files_below, &[("GAP-SIZE-002", 1)]);
 }
