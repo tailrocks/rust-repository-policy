@@ -22,7 +22,7 @@ use std::path::Path;
 
 use toml::Value;
 
-use crate::finding::{rel_path, Finding};
+use crate::finding::{Finding, rel_path};
 use crate::meta::Metadata;
 use crate::util::{dep_entry_line, lints_header_line, read_text, toml_key_line};
 

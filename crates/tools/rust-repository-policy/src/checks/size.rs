@@ -18,7 +18,7 @@
 
 use std::path::Path;
 
-use crate::finding::{rel_path, Finding};
+use crate::finding::{Finding, rel_path};
 use crate::inventory::Inventory;
 use crate::meta::Metadata;
 use crate::util::read_text;

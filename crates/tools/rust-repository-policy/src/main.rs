@@ -51,7 +51,7 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Option<Options>,
                 return Err(format!(
                     "unknown argument `{arg}`\n{usage}",
                     usage = usage()
-                ))
+                ));
             }
         }
     }

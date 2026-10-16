@@ -30,7 +30,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::finding::{rel_path, Finding};
+use crate::finding::{Finding, rel_path};
 use crate::meta::Metadata;
 use crate::util::{dep_entry_line, json_string_line, read_text};
 

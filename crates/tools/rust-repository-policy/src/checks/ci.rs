@@ -17,7 +17,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::finding::{rel_path, Finding};
+use crate::finding::{Finding, rel_path};
 use crate::inventory::Inventory;
 use crate::util::{json_string_line, read_text};
 
