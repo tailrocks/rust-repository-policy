@@ -39,9 +39,9 @@ use std::path::{Path, PathBuf};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
 use syn::visit::Visit as _;
-use syn::{parse::Parser as _, Attribute, Item, ItemMod, Meta, Token, Visibility};
+use syn::{Attribute, Item, ItemMod, Meta, Token, Visibility, parse::Parser as _};
 
-use crate::finding::{rel_path, Finding};
+use crate::finding::{Finding, rel_path};
 use crate::inventory::Inventory;
 use crate::meta::Metadata;
 use crate::util::read_text;
